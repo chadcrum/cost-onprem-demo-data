@@ -1,4 +1,4 @@
-# Demo Data Generator for Cost Management On-Premise
+# Demo Data CronJob
 
 Populates synthetic cost, CPU/memory, volume, and network data into the
 Cost Management on-premise database. Designed to keep a demo environment
@@ -61,12 +61,12 @@ pip install -r requirements.txt
 # Backfill a month of data
 DB_HOST=127.0.0.1 DB_PORT=15432 DB_PASSWORD=<password> \
 VALKEY_HOST=127.0.0.1 VALKEY_PORT=16379 \
-python populate-demo-day.py --backfill-from 2026-02-01 --backfill-to 2026-02-28
+python3 scripts/populate-demo-day.py --backfill-from 2026-02-01 --backfill-to 2026-02-28
 
 # Or just today
 DB_HOST=127.0.0.1 DB_PORT=15432 DB_PASSWORD=<password> \
 VALKEY_HOST=127.0.0.1 VALKEY_PORT=16379 \
-python populate-demo-day.py
+python3 scripts/populate-demo-day.py
 ```
 
 ### Deploy as CronJob
@@ -86,7 +86,7 @@ kubectl logs -l app.kubernetes.io/name=demo-data -n cost-onprem --tail=50
 ### Dry run
 
 ```bash
-python populate-demo-day.py --dry-run --backfill-from 2026-02-01 --backfill-to 2026-02-28
+python3 scripts/populate-demo-day.py --dry-run --backfill-from 2026-02-01 --backfill-to 2026-02-28
 ```
 
 ## Environment variables
@@ -105,12 +105,12 @@ python populate-demo-day.py --dry-run --backfill-from 2026-02-01 --backfill-to 2
 ## File structure
 
 ```
-scripts/demo-data/
-├── populate-demo-day.py    # Main script
-├── deploy.sh               # Deploy CronJob to cluster
-├── requirements.txt        # Python dependencies
-├── README.md               # This file
-└── k8s/
-    ├── configmap.yaml      # ConfigMap template
-    └── cronjob.yaml        # CronJob manifest
+cost-onprem-demo-data/
+├── scripts/
+│   └── populate-demo-day.py  # Main script (runs in CronJob)
+├── k8s/
+│   └── cronjob.yaml          # CronJob manifest
+├── deploy.sh                 # Deploy CronJob to cluster
+├── requirements.txt          # Python dependencies
+└── README.md
 ```

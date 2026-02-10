@@ -8,10 +8,6 @@ build/
 .venv/
 venv/
 
-# NISE output
-nise_output/
-*.tar.gz
-
 # IDE
 .idea/
 .vscode/

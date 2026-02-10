@@ -4,51 +4,24 @@ Synthetic demo data generator for **Red Hat Cost Management On-Premise**.
 
 Populates the Cost Management UI with realistic cost, CPU/memory, volume, and
 network data by inserting directly into the PostgreSQL summary tables that the
-UI reads from.  Bypasses the normal Celery processing pipeline so you have full
+UI reads from. Bypasses the normal Celery processing pipeline so you have full
 control over the values shown in the demo.
 
 ## Directory Structure
 
 ```
 cost-onprem-demo-data/
-├── helpers/                 # Shared Python utilities (extracted from test infra)
-│   ├── config.py            # ClusterConfig, KeycloakConfig, JWT helpers
-│   ├── oc_utils.py          # oc/kubectl wrappers, DB queries, pod exec
-│   ├── packaging.py         # Upload package (tar.gz) creation
-│   ├── nise_utils.py        # NISE data generation
-│   └── e2e_utils.py         # Source registration, wait functions
-├── scripts/                 # Data generation scripts
-│   ├── populate-demo-day.py # ★ Primary: daily CronJob data generator
-│   ├── generate-demo-data.py
-│   ├── generate-demo-data-3-clusters.py
-│   ├── generate-demo-data-parodos.py
-│   ├── generate-varied-demo-monthly.py
-│   ├── generate-february-demo.py
-│   ├── generate-multi-cluster-snapshot.py
-│   ├── generate-realistic-demo-data.py
-│   ├── generate-realistic-demo-data-v2.py
-│   ├── generate-truly-varied-demo-data.py
-│   ├── generate-varied-demo-data-parallel.py
-│   ├── add-january-data.py
-│   ├── delete-demo-sources.py
-│   ├── insert-8-cluster-demo.py
-│   └── quick-insert-8-clusters.sh
-├── nise-configs/            # NISE static report YAML templates
-│   ├── static-prod-ecommerce.yml
-│   ├── static-dev-devops.yml
-│   ├── static-staging-loadtest.yml
-│   └── varied-workload-template.yml
-├── sql/                     # Direct SQL insert scripts
+├── scripts/
+│   └── populate-demo-day.py  # Daily CronJob data generator
+├── sql/                      # Reference SQL scripts (manual use)
 │   ├── populate-demo-data.sql
 │   └── populate-ros-demo-data.sql
-├── k8s/                     # Kubernetes manifests for CronJob deployment
-│   ├── cronjob.yaml
-│   └── configmap.yaml
-├── docs/                    # Guides and plans
-│   ├── DEMO-ACCESS-GUIDE.md
-│   ├── DEMO-DEPLOYMENT-PLAN.md
-│   └── cronjob-README.md
-├── deploy.sh                # One-command CronJob deployment
+├── k8s/
+│   └── cronjob.yaml          # CronJob manifest
+├── docs/
+│   ├── cronjob-README.md     # Detailed CronJob documentation
+│   └── data-generation-logic.md  # How data values are computed
+├── deploy.sh                 # One-command CronJob deployment
 ├── requirements.txt
 ├── .gitignore
 └── README.md
@@ -71,9 +44,9 @@ pip install -r requirements.txt
 
 ### 2. Backfill historical data (one-time)
 
-The primary script `scripts/populate-demo-day.py` inserts data directly into
-the partitioned summary tables.  Use `--backfill-from` / `--backfill-to` to
-seed historical data:
+The script `scripts/populate-demo-day.py` inserts data directly into the
+partitioned summary tables. Use `--backfill-from` / `--backfill-to` to seed
+historical data:
 
 ```bash
 # Backfill the last 30 days
@@ -115,13 +88,17 @@ kubectl create job demo-data-manual --from=cronjob/demo-data -n cost-onprem
 
 ## Data Model
 
+> For a detailed breakdown of every layer of the generation logic (multipliers,
+> variance, cost splits, utilization bands, etc.), see
+> [docs/data-generation-logic.md](docs/data-generation-logic.md).
+
 The generator creates 3 demo clusters with realistic weekly traffic patterns:
 
 | Cluster | Base Cost/Day | Namespaces | Nodes | PVCs |
 |---------|--------------|------------|-------|------|
-| Production Cluster | ~$85 | 4 (frontend, backend-api, database, monitoring) | 3 | 4 |
-| Development Cluster | ~$42 | 4 (dev-workspace, ci-cd, code-review, testing) | 2 | 3 |
-| Staging Cluster | ~$28 | 4 (staging-app, load-testing, qa-validation, redis-cache) | 2 | 3 |
+| Production Cluster | $42.50 | frontend, backend-api, database, monitoring, redis-cache | 3 | 4 |
+| Development Cluster | $18.20 | dev-workspace, ci-cd, code-review, testing | 3 | 3 |
+| Staging Cluster | $12.80 | staging-app, load-testing, qa-validation | 3 | 3 |
 
 ### Weekly Pattern
 
@@ -137,7 +114,7 @@ Day-of-week multipliers create realistic usage curves:
 | Saturday | 0.48 | Weekend low |
 | Sunday | 0.52 | Weekend low |
 
-A random variance of ±4% is applied on top, plus consideration of the
+A random variance of +/-4% is applied on top, plus consideration of the
 previous 2 days' actual values to create smooth, non-flat curves.
 
 ### Cost Breakdown
@@ -147,56 +124,32 @@ Costs are split into realistic components:
 - **Infrastructure raw cost** (~55%): Base compute charges
 - **Infrastructure markup** (~8.25%): Management overhead
 - **Infrastructure usage (CPU)** (~10%): CPU-based metering
-- **Infrastructure usage (Memory)** (~10%): Memory-based metering
-- **Supplementary cost** (~16.75%): Network, support, etc.
+- **Infrastructure usage (Memory)** (~5%): Memory-based metering
+- **Supplementary cost** (~26%): CPU, memory, and volume supplementary charges
+- **Cost model** (~41%): CPU, memory, and volume cost model rates
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_HOST` | `cost-onprem-database` | PostgreSQL host |
+| `DB_HOST` | `cost-onprem-database.cost-onprem.svc.cluster.local` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
 | `DB_NAME` | `costonprem_koku` | Database name |
 | `DB_USER` | `koku_user` | Database user |
-| `DB_PASSWORD` | *(none)* | Database password |
+| `DB_PASSWORD` | *(required)* | Database password |
 | `DB_SCHEMA` | `orgorg1234567` | Tenant schema |
-| `VALKEY_HOST` | `cost-onprem-valkey` | Valkey/Redis host |
+| `VALKEY_HOST` | `cost-onprem-valkey.cost-onprem.svc.cluster.local` | Valkey/Redis host |
 | `VALKEY_PORT` | `6379` | Valkey/Redis port |
-| `NAMESPACE` | `cost-onprem` | K8s namespace (for NISE-based scripts) |
-| `HELM_RELEASE_NAME` | `cost-onprem` | Helm release name |
-| `KEYCLOAK_NAMESPACE` | `keycloak` | Keycloak namespace |
 
-## Script Categories
+## SQL Reference Scripts
 
-### Direct DB Insert (recommended for demos)
+The `sql/` directory contains standalone SQL scripts for manual use:
 
-These bypass the processing pipeline entirely:
+- **`populate-demo-data.sql`** -- Inserts cost + pod + node data for 8 clusters x 6 days directly into Koku summary tables.
+- **`populate-ros-demo-data.sql`** -- Inserts ROS workloads and Kruize-compatible recommendation sets.
 
-- **`scripts/populate-demo-day.py`** - Primary daily generator with weekly patterns
-- **`scripts/insert-8-cluster-demo.py`** - Quick 8-cluster seeding
-- **`scripts/quick-insert-8-clusters.sh`** - Bash variant of above
-- **`sql/populate-demo-data.sql`** - Raw SQL for Koku tables
-- **`sql/populate-ros-demo-data.sql`** - Raw SQL for ROS tables
-
-### NISE Pipeline (uses real processing)
-
-These generate data via NISE and upload through the gateway API:
-
-- **`scripts/generate-demo-data.py`** - Basic 3-cluster generator
-- **`scripts/generate-demo-data-3-clusters.py`** - Enhanced 3-cluster with varied profiles
-- **`scripts/generate-demo-data-parodos.py`** - Parodos-dev optimized variant
-- **`scripts/generate-varied-demo-monthly.py`** - Monthly separated uploads
-- **`scripts/generate-february-demo.py`** - February 2026 specific
-- **`scripts/generate-multi-cluster-snapshot.py`** - 8-cluster snapshot
-- **`scripts/generate-realistic-demo-data.py`** - Uses static YAML templates
-- **`scripts/generate-realistic-demo-data-v2.py`** - Programmatic CSV variation
-- **`scripts/generate-truly-varied-demo-data.py`** - Period-based variations
-- **`scripts/generate-varied-demo-data-parallel.py`** - Parallel NISE execution
-
-### Utility Scripts
-
-- **`scripts/delete-demo-sources.py`** - Clean up demo sources via API
-- **`scripts/add-january-data.py`** - Add data to existing sources
+These are not invoked by the CronJob or any Python script. They serve as
+reference material or for one-off manual seeding via `psql` or `oc exec`.
 
 ## License
 

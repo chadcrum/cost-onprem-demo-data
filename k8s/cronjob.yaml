@@ -3,11 +3,12 @@
 # cost, CPU/memory, volume, and network data.
 #
 # Prerequisites:
-#   1. ConfigMap created from populate-demo-day.py (see configmap.yaml)
-#   2. cost-onprem chart deployed (provides DB + Valkey services)
+#   1. cost-onprem chart deployed (provides DB + Valkey services)
+#   2. ConfigMap 'demo-data-script' created from populate-demo-day.py
+#      (deploy.sh handles both the ConfigMap and this CronJob)
 #
 # Deploy:
-#   kubectl apply -f configmap.yaml -f cronjob.yaml -n cost-onprem
+#   ./deploy.sh -n cost-onprem
 #
 # Manual trigger:
 #   kubectl create job demo-data-manual --from=cronjob/demo-data -n cost-onprem
