@@ -1,0 +1,199 @@
+---
+# Production E-commerce Platform
+# Realistic pattern: Traffic spikes on weekends, Black Friday peak, steady weekday load
+generators:
+  - OCPGenerator:
+      start_date: START_DATE
+      end_date: END_DATE
+      nodes:
+        # High-capacity worker node for web tier
+        - node:
+          node_name: CLUSTER_ID-worker-1
+          cpu_cores: 16
+          memory_gig: 64
+          resource_id: CLUSTER_ID-node-1
+          labels: node-role.kubernetes.io/worker:true|workload:web
+          namespaces:
+            production-web:
+              labels: env:production|tier:frontend
+              pods:
+                # Web frontend - high usage with weekend spikes
+                - pod:
+                  pod_name: frontend-web-1
+                  cpu_request: 3.0
+                  mem_request_gig: 8.0
+                  cpu_limit: 6.0
+                  mem_limit_gig: 16.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-3: 2.1      # Weekend spike
+                    jan_4: 1.2        # Mon low
+                    jan_5-7: 1.5      # Weekday steady
+                    jan_8-10: 2.8     # Weekend spike
+                    jan_11-14: 1.4    # Weekday
+                    jan_15-17: 3.2    # Big weekend
+                    jan_18-21: 1.6    # Weekday
+                    jan_22-24: 4.5    # MAJOR PROMO EVENT
+                    jan_25-28: 1.8    # Post-promo
+                    jan_29-31: 2.4    # Weekend
+                    feb_1: 1.3        # Mon
+                    feb_2-5: 1.7      # Weekday
+                  mem_usage_gig:
+                    jan_1-3: 5.8
+                    jan_4: 3.2
+                    jan_5-7: 4.0
+                    jan_8-10: 6.5
+                    jan_11-14: 3.8
+                    jan_15-17: 7.2
+                    jan_18-21: 4.2
+                    jan_22-24: 12.0   # Peak memory during promo
+                    jan_25-28: 4.8
+                    jan_29-31: 6.0
+                    feb_1: 3.5
+                    feb_2-5: 4.5
+                  labels: app:ecommerce|component:frontend|team:web
+                
+                - pod:
+                  pod_name: frontend-web-2
+                  cpu_request: 3.0
+                  mem_request_gig: 8.0
+                  cpu_limit: 6.0
+                  mem_limit_gig: 16.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-3: 1.9
+                    jan_4: 1.0
+                    jan_5-7: 1.3
+                    jan_8-10: 2.5
+                    jan_11-14: 1.2
+                    jan_15-17: 2.9
+                    jan_18-21: 1.4
+                    jan_22-24: 4.2
+                    jan_25-28: 1.6
+                    jan_29-31: 2.2
+                    feb_1: 1.1
+                    feb_2-5: 1.5
+                  mem_usage_gig:
+                    jan_1-3: 5.2
+                    jan_4: 2.8
+                    jan_5-7: 3.5
+                    jan_8-10: 5.8
+                    jan_11-14: 3.2
+                    jan_15-17: 6.5
+                    jan_18-21: 3.8
+                    jan_22-24: 11.2
+                    jan_25-28: 4.2
+                    jan_29-31: 5.5
+                    feb_1: 3.0
+                    feb_2-5: 4.0
+                  labels: app:ecommerce|component:frontend|team:web
+        
+        # Application/API tier node
+        - node:
+          node_name: CLUSTER_ID-worker-2
+          cpu_cores: 12
+          memory_gig: 48
+          resource_id: CLUSTER_ID-node-2
+          labels: node-role.kubernetes.io/worker:true|workload:api
+          namespaces:
+            production-api:
+              labels: env:production|tier:backend
+              pods:
+                # API backend - follows traffic but more stable
+                - pod:
+                  pod_name: api-backend-1
+                  cpu_request: 2.5
+                  mem_request_gig: 6.0
+                  cpu_limit: 5.0
+                  mem_limit_gig: 12.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-7: 1.8      # Steady baseline
+                    jan_8-14: 2.0     # Growing
+                    jan_15-21: 2.2    # More traffic
+                    jan_22-24: 3.8    # Promo peak
+                    jan_25-31: 2.1    # Normal
+                    feb_1-5: 2.3      # Current
+                  mem_usage_gig:
+                    jan_1-7: 4.2
+                    jan_8-14: 4.5
+                    jan_15-21: 4.8
+                    jan_22-24: 8.5
+                    jan_25-31: 4.6
+                    feb_1-5: 5.0
+                  labels: app:ecommerce|component:api|team:backend
+                
+                # Payment processing - spikes with transactions
+                - pod:
+                  pod_name: payment-processor-1
+                  cpu_request: 1.5
+                  mem_request_gig: 4.0
+                  cpu_limit: 3.0
+                  mem_limit_gig: 8.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-21: 0.8     # Normal
+                    jan_22-24: 2.5    # Promo spike
+                    jan_25-31: 0.9    # Back to normal
+                    feb_1-5: 0.85
+                  mem_usage_gig:
+                    jan_1-21: 2.5
+                    jan_22-24: 6.5
+                    jan_25-31: 2.8
+                    feb_1-5: 2.6
+                  labels: app:ecommerce|component:payment|team:backend|critical:true
+        
+        # Database tier node
+        - node:
+          node_name: CLUSTER_ID-worker-3
+          cpu_cores: 16
+          memory_gig: 128
+          resource_id: CLUSTER_ID-node-3
+          labels: node-role.kubernetes.io/worker:true|workload:database
+          namespaces:
+            production-data:
+              labels: env:production|tier:data
+              pods:
+                # PostgreSQL - steadily growing load
+                - pod:
+                  pod_name: postgres-primary
+                  cpu_request: 6.0
+                  mem_request_gig: 32.0
+                  cpu_limit: 12.0
+                  mem_limit_gig: 64.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-7: 3.2      # Starting load
+                    jan_8-14: 3.8     # Growth
+                    jan_15-21: 4.5    # More queries
+                    jan_22-24: 8.5    # Promo crush
+                    jan_25-31: 4.8    # Sustained higher
+                    feb_1-5: 5.2      # Continued growth
+                  mem_usage_gig:
+                    jan_1-7: 22.0
+                    jan_8-14: 24.5
+                    jan_15-21: 27.0
+                    jan_22-24: 48.0   # Cache everything during promo
+                    jan_25-31: 28.5
+                    feb_1-5: 30.0
+                  labels: app:database|component:postgresql|role:primary|critical:true
+                
+                # Redis cache - high memory, bursty CPU
+                - pod:
+                  pod_name: redis-cache
+                  cpu_request: 2.0
+                  mem_request_gig: 16.0
+                  cpu_limit: 4.0
+                  mem_limit_gig: 24.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-21: 0.9
+                    jan_22-24: 3.2    # Promo cache load
+                    jan_25-31: 1.1
+                    feb_1-5: 1.0
+                  mem_usage_gig:
+                    jan_1-21: 12.0    # Cache growing
+                    jan_22-24: 20.0   # Full cache
+                    jan_25-31: 13.5
+                    feb_1-5: 14.0
+                  labels: app:cache|component:redis|tier:data

@@ -1,0 +1,109 @@
+---
+# Development Environment
+# Realistic pattern: Working hours usage, CI/CD spikes, weekend lows
+generators:
+  - OCPGenerator:
+      start_date: START_DATE
+      end_date: END_DATE
+      nodes:
+        # Dev node - moderate capacity
+        - node:
+          node_name: CLUSTER_ID-worker-1
+          cpu_cores: 8
+          memory_gig: 32
+          resource_id: CLUSTER_ID-node-1
+          labels: node-role.kubernetes.io/worker:true|workload:dev
+          namespaces:
+            development:
+              labels: env:development|team:engineering
+              pods:
+                # Dev app - working hours only (Mon-Fri 9-5)
+                - pod:
+                  pod_name: dev-app-1
+                  cpu_request: 1.0
+                  mem_request_gig: 2.0
+                  cpu_limit: 2.0
+                  mem_limit_gig: 4.0
+                  pod_seconds: 28800  # 8 hours per day
+                  cpu_usage:
+                    jan_1-2: 0.1      # Weekend - idle
+                    jan_3: 0.0        # Holiday
+                    jan_4-5: 0.8      # Weekend
+                    jan_6-10: 0.7     # Weekdays - active
+                    jan_11-12: 0.1    # Weekend
+                    jan_13-17: 0.9    # Busy week
+                    jan_18-19: 0.1    # Weekend
+                    jan_20-24: 0.6    # Normal week
+                    jan_25-26: 0.1    # Weekend
+                    jan_27-31: 0.85   # Sprint push
+                    feb_1-2: 0.1      # Weekend
+                    feb_3-5: 0.75     # Weekdays
+                  mem_usage_gig:
+                    jan_1-2: 0.5
+                    jan_3: 0.2
+                    jan_4-5: 0.4
+                    jan_6-10: 1.5
+                    jan_11-12: 0.4
+                    jan_13-17: 1.7
+                    jan_18-19: 0.3
+                    jan_20-24: 1.4
+                    jan_25-26: 0.4
+                    jan_27-31: 1.8
+                    feb_1-2: 0.4
+                    feb_3-5: 1.6
+                  labels: app:dev-webapp|env:dev|team:frontend
+            
+            ci-cd:
+              labels: env:ci|team:platform
+              pods:
+                # CI/CD runner - spikes during builds
+                - pod:
+                  pod_name: jenkins-agent-1
+                  cpu_request: 2.0
+                  mem_request_gig: 4.0
+                  cpu_limit: 4.0
+                  mem_limit_gig: 8.0
+                  pod_seconds: 43200  # Runs intermittently
+                  cpu_usage:
+                    jan_1-5: 0.3      # Light
+                    jan_6: 3.2        # Big build day
+                    jan_7-12: 0.5     # Light
+                    jan_13: 3.5       # Release build
+                    jan_14-19: 0.4    # Light
+                    jan_20: 3.8       # Another release
+                    jan_21-26: 0.6    # Testing
+                    jan_27: 3.6       # Sprint release
+                    jan_28-31: 0.5    # Light
+                    feb_1-2: 0.3
+                    feb_3: 3.4        # Build spike
+                    feb_4-5: 0.7
+                  mem_usage_gig:
+                    jan_1-5: 1.5
+                    jan_6: 6.5
+                    jan_7-12: 1.8
+                    jan_13: 7.0
+                    jan_14-19: 1.6
+                    jan_20: 7.2
+                    jan_21-26: 2.0
+                    jan_27: 6.8
+                    jan_28-31: 1.7
+                    feb_1-2: 1.5
+                    feb_3: 6.9
+                    feb_4-5: 2.2
+                  labels: app:jenkins|component:agent|team:platform
+                
+                # Test runner - periodic execution
+                - pod:
+                  pod_name: test-runner-1
+                  cpu_request: 1.5
+                  mem_request_gig: 3.0
+                  cpu_limit: 3.0
+                  mem_limit_gig: 6.0
+                  pod_seconds: 21600  # 6 hours per day
+                  cpu_usage:
+                    jan_1-31: 1.2     # Steady test execution
+                    feb_1-5: 1.3
+                  mem_usage_gig:
+                    jan_1-31: 2.2
+                    feb_1-5: 2.4
+                  labels: app:testing|component:pytest|team:qa

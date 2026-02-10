@@ -1,0 +1,82 @@
+# Standalone CronJob for populating demo cost data daily.
+# Runs at midnight UTC (1am CET) and inserts one day of synthetic
+# cost, CPU/memory, volume, and network data.
+#
+# Prerequisites:
+#   1. ConfigMap created from populate-demo-day.py (see configmap.yaml)
+#   2. cost-onprem chart deployed (provides DB + Valkey services)
+#
+# Deploy:
+#   kubectl apply -f configmap.yaml -f cronjob.yaml -n cost-onprem
+#
+# Manual trigger:
+#   kubectl create job demo-data-manual --from=cronjob/demo-data -n cost-onprem
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-data
+  labels:
+    app.kubernetes.io/name: demo-data
+    app.kubernetes.io/component: demo-data-generator
+spec:
+  schedule: "0 0 * * *"  # Midnight UTC = 1am CET
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: demo-data
+            app.kubernetes.io/component: demo-data-generator
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: demo-data
+            image: registry.access.redhat.com/ubi9/python-311:latest
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "-c"]
+            args:
+              - |
+                pip install --quiet psycopg2-binary redis &&
+                python3 /scripts/populate-demo-day.py --verbose
+            env:
+            - name: DB_HOST
+              value: cost-onprem-database
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: costonprem_koku
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cost-onprem-db-credentials
+                  key: koku-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cost-onprem-db-credentials
+                  key: koku-password
+            - name: DB_SCHEMA
+              value: orgorg1234567
+            - name: VALKEY_HOST
+              value: cost-onprem-valkey
+            - name: VALKEY_PORT
+              value: "6379"
+            volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "300m"
+          volumes:
+          - name: script
+            configMap:
+              name: demo-data-script

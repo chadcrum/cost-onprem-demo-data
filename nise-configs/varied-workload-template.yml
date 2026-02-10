@@ -1,0 +1,228 @@
+---
+# Varied workload template for realistic demo data
+# This creates multiple pods with different resource profiles and usage patterns
+generators:
+  - OCPGenerator:
+      start_date: START_DATE
+      end_date: END_DATE
+      nodes:
+        # Node 1: High-capacity worker node
+        - node:
+          node_name: CLUSTER_ID-worker-1
+          cpu_cores: 16
+          memory_gig: 64
+          resource_id: CLUSTER_ID-node-1
+          labels: node-role.kubernetes.io/worker:true|kubernetes.io/os:linux|node-type:compute
+          namespaces:
+            # Production web application - high traffic
+            NAMESPACE_1:
+              labels: env:production|tier:frontend
+              pods:
+                - pod:
+                  pod_name: webapp-frontend-1
+                  cpu_request: 2.0
+                  mem_request_gig: 4.0
+                  cpu_limit: 4.0
+                  mem_limit_gig: 8.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-5: 1.8    # High usage start of month
+                    jan_6-10: 2.5   # Peak traffic
+                    jan_11-15: 2.2  # Medium-high
+                    jan_16-20: 1.5  # Lower traffic
+                    jan_21-25: 2.8  # Another peak
+                    jan_26-31: 2.0  # Steady
+                    feb_1-5: 1.9    # Current
+                  mem_usage_gig:
+                    jan_1-5: 3.2
+                    jan_6-10: 4.5
+                    jan_11-15: 3.8
+                    jan_16-20: 2.8
+                    jan_21-25: 4.2
+                    jan_26-31: 3.5
+                    feb_1-5: 3.3
+                  labels: app:webapp|component:frontend|tier:web
+                
+                - pod:
+                  pod_name: webapp-frontend-2
+                  cpu_request: 2.0
+                  mem_request_gig: 4.0
+                  cpu_limit: 4.0
+                  mem_limit_gig: 8.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-5: 1.5
+                    jan_6-10: 2.2
+                    jan_11-15: 1.9
+                    jan_16-20: 1.3
+                    jan_21-25: 2.4
+                    jan_26-31: 1.8
+                    feb_1-5: 1.6
+                  mem_usage_gig:
+                    jan_1-5: 2.8
+                    jan_6-10: 3.9
+                    jan_11-15: 3.2
+                    jan_16-20: 2.4
+                    jan_21-25: 3.7
+                    jan_26-31: 3.0
+                    feb_1-5: 2.9
+                  labels: app:webapp|component:frontend|tier:web
+                
+                # API backend - steady medium load
+                - pod:
+                  pod_name: api-backend-1
+                  cpu_request: 1.5
+                  mem_request_gig: 3.0
+                  cpu_limit: 3.0
+                  mem_limit_gig: 6.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-31: 1.2   # Steady load
+                    feb_1-5: 1.3
+                  mem_usage_gig:
+                    jan_1-31: 2.4
+                    feb_1-5: 2.5
+                  labels: app:webapp|component:backend|tier:api
+            
+            # Database workload - consistent but growing
+            NAMESPACE_2:
+              labels: env:production|tier:data
+              pods:
+                - pod:
+                  pod_name: postgres-primary
+                  cpu_request: 4.0
+                  mem_request_gig: 16.0
+                  cpu_limit: 8.0
+                  mem_limit_gig: 32.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-10: 2.5   # Start low
+                    jan_11-20: 3.2  # Growing
+                    jan_21-31: 3.8  # Higher load
+                    feb_1-5: 4.2    # Peak
+                  mem_usage_gig:
+                    jan_1-10: 12.0
+                    jan_11-20: 13.5
+                    jan_21-31: 14.8
+                    feb_1-5: 15.5
+                  labels: app:database|component:postgres|role:primary
+                
+                - pod:
+                  pod_name: redis-cache
+                  cpu_request: 1.0
+                  mem_request_gig: 8.0
+                  cpu_limit: 2.0
+                  mem_limit_gig: 12.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-31: 0.6   # Light cache usage
+                    feb_1-5: 0.7
+                  mem_usage_gig:
+                    jan_1-31: 5.2
+                    feb_1-5: 5.8
+                  labels: app:cache|component:redis|tier:data
+        
+        # Node 2: Medium-capacity worker
+        - node:
+          node_name: CLUSTER_ID-worker-2
+          cpu_cores: 8
+          memory_gig: 32
+          resource_id: CLUSTER_ID-node-2
+          labels: node-role.kubernetes.io/worker:true|kubernetes.io/os:linux|node-type:compute
+          namespaces:
+            # ML/Analytics workloads - bursty pattern
+            NAMESPACE_3:
+              labels: env:production|tier:ml
+              pods:
+                - pod:
+                  pod_name: ml-training-job-1
+                  cpu_request: 4.0
+                  mem_request_gig: 16.0
+                  cpu_limit: 6.0
+                  mem_limit_gig: 24.0
+                  pod_seconds: 43200  # Runs half day
+                  cpu_usage:
+                    jan_1-3: 0      # Not running
+                    jan_4-6: 5.2    # Training spike
+                    jan_7-10: 0     # Idle
+                    jan_11-14: 5.5  # Another training run
+                    jan_15-18: 0    # Idle
+                    jan_19-22: 4.8  # Training
+                    jan_23-31: 0    # Idle
+                    feb_1-5: 5.0    # New training
+                  mem_usage_gig:
+                    jan_1-3: 0
+                    jan_4-6: 18.0
+                    jan_7-10: 0
+                    jan_11-14: 19.5
+                    jan_15-18: 0
+                    jan_19-22: 17.2
+                    jan_23-31: 0
+                    feb_1-5: 18.5
+                  labels: app:ml-platform|workload:training|priority:batch
+                
+                # Data processing - periodic spikes
+                - pod:
+                  pod_name: data-processor-1
+                  cpu_request: 2.0
+                  mem_request_gig: 8.0
+                  cpu_limit: 4.0
+                  mem_limit_gig: 16.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-7: 0.8    # Low baseline
+                    jan_8-14: 2.5   # Processing spike
+                    jan_15-21: 1.2  # Medium
+                    jan_22-28: 3.1  # Big spike
+                    jan_29-31: 1.0  # Low
+                    feb_1-5: 1.5    # Recovering
+                  mem_usage_gig:
+                    jan_1-7: 4.0
+                    jan_8-14: 10.2
+                    jan_15-21: 5.5
+                    jan_22-28: 12.8
+                    jan_29-31: 4.8
+                    feb_1-5: 6.2
+                  labels: app:ml-platform|workload:processing|priority:normal
+        
+        # Node 3: Smaller node for dev/QA
+        - node:
+          node_name: CLUSTER_ID-worker-3
+          cpu_cores: 4
+          memory_gig: 16
+          resource_id: CLUSTER_ID-node-3
+          labels: node-role.kubernetes.io/worker:true|kubernetes.io/os:linux|node-type:standard
+          namespaces:
+            # Monitoring stack - consistent load
+            monitoring:
+              labels: env:infrastructure|tier:monitoring
+              pods:
+                - pod:
+                  pod_name: prometheus
+                  cpu_request: 1.0
+                  mem_request_gig: 4.0
+                  cpu_limit: 2.0
+                  mem_limit_gig: 8.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-31: 0.9   # Steady
+                    feb_1-5: 0.95   # Slightly growing
+                  mem_usage_gig:
+                    jan_1-31: 3.5
+                    feb_1-5: 3.8
+                  labels: app:monitoring|component:prometheus
+                
+                - pod:
+                  pod_name: grafana
+                  cpu_request: 0.5
+                  mem_request_gig: 2.0
+                  cpu_limit: 1.0
+                  mem_limit_gig: 4.0
+                  pod_seconds: 86400
+                  cpu_usage:
+                    jan_1-31: 0.3
+                    feb_1-5: 0.35
+                  mem_usage_gig:
+                    jan_1-31: 1.2
+                    feb_1-5: 1.4
+                  labels: app:monitoring|component:grafana

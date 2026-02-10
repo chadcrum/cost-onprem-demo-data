@@ -1,0 +1,24 @@
+# ConfigMap containing the demo data population script.
+#
+# Generate from the Python script:
+#   kubectl create configmap demo-data-script \
+#     --from-file=populate-demo-day.py=../populate-demo-day.py \
+#     -n cost-onprem --dry-run=client -o yaml > configmap.yaml
+#
+# Or apply directly:
+#   kubectl create configmap demo-data-script \
+#     --from-file=populate-demo-day.py=../populate-demo-day.py \
+#     -n cost-onprem
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-data-script
+  labels:
+    app.kubernetes.io/name: demo-data
+    app.kubernetes.io/component: demo-data-generator
+data:
+  populate-demo-day.py: |
+    # This file is auto-generated. Use the command above to regenerate
+    # from the source script, or apply directly with kubectl create configmap.
+    #
+    # See ../populate-demo-day.py for the canonical source.
