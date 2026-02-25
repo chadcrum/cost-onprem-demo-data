@@ -71,7 +71,7 @@ CLUSTERS = [
     {
         "cluster_id": "demo-prod-cluster",
         "cluster_alias": "Production Cluster",
-        "source_uuid": "99d27fab-8af4-44a0-9aa8-96298ab09d79",
+        "source_uuid": None,  # resolved at runtime from api_provider
         "base_cost": 42.50,       # Base daily cost in USD
         "base_cpu": 28.0,         # Base CPU core-hours
         "base_mem": 56.0,         # Base memory GiB-hours
@@ -102,7 +102,7 @@ CLUSTERS = [
     {
         "cluster_id": "demo-dev-cluster",
         "cluster_alias": "Development Cluster",
-        "source_uuid": "5cdc3213-8af5-4eac-a092-62b0801d475a",
+        "source_uuid": None,  # resolved at runtime from api_provider
         "base_cost": 18.20,
         "base_cpu": 12.0,
         "base_mem": 24.0,
@@ -131,7 +131,7 @@ CLUSTERS = [
     {
         "cluster_id": "demo-staging-cluster",
         "cluster_alias": "Staging Cluster",
-        "source_uuid": "648899b3-097a-43ef-a728-9598559a5721",
+        "source_uuid": None,  # resolved at runtime from api_provider
         "base_cost": 12.80,
         "base_cpu": 8.5,
         "base_mem": 17.0,
@@ -212,12 +212,15 @@ def resolve_provider_uuids(conn):
 
     The cost summary tables have a FK to reporting_tenant_api_provider, so we
     must use UUIDs that actually exist in that table rather than hardcoded ones.
-    Providers are matched to clusters by position (sorted by name).
+    Providers are matched to clusters by name similarity against cluster_alias.
     """
     sql = "SELECT uuid::text, name FROM public.api_provider ORDER BY name"
-    with conn.cursor() as cur:
-        cur.execute(sql)
-        providers = cur.fetchall()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            providers = cur.fetchall()
+    except psycopg2.Error as e:
+        sys.exit(f"ERROR: Failed to query api_provider table: {e}")
 
     if not providers:
         sys.exit(
@@ -229,19 +232,31 @@ def resolve_provider_uuids(conn):
     for uuid_val, name in providers:
         logger.info(f"  {name}: {uuid_val}")
 
-    if len(providers) < len(CLUSTERS):
-        logger.warning(
-            f"Only {len(providers)} provider(s) but {len(CLUSTERS)} clusters defined. "
-            f"Extra clusters will be skipped."
-        )
-
-    # Assign real UUIDs to clusters; trim CLUSTERS if we have fewer providers
+    # Match providers to clusters by name similarity (case-insensitive substring)
     active = []
-    for i, cluster in enumerate(CLUSTERS):
-        if i < len(providers):
-            cluster["source_uuid"] = providers[i][0]
+    used_providers = set()
+    for cluster in CLUSTERS:
+        alias = cluster["cluster_alias"].lower()
+        match = next(
+            (p for p in providers
+             if p[0] not in used_providers
+             and (p[1].lower() in alias or alias in p[1].lower())),
+            None,
+        )
+        if match:
+            cluster["source_uuid"] = match[0]
+            used_providers.add(match[0])
+            logger.info(f"  Mapped provider '{match[1]}' -> cluster '{cluster['cluster_alias']}'")
             active.append(cluster)
+        else:
+            logger.warning(f"  No provider match for cluster '{cluster['cluster_alias']}', skipping")
     CLUSTERS[:] = active
+
+    if not CLUSTERS:
+        sys.exit(
+            "ERROR: No providers matched any cluster. "
+            "Provider names must contain (or be contained by) a cluster alias."
+        )
 
 
 def get_previous_costs(conn, schema: str, target_date: date) -> dict:
