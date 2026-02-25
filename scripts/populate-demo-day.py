@@ -232,7 +232,7 @@ def resolve_provider_uuids(conn):
     for uuid_val, name in providers:
         logger.info(f"  {name}: {uuid_val}")
 
-    # Match providers to clusters by name similarity (case-insensitive substring)
+    # Try name-based matching first (case-insensitive substring)
     active = []
     used_providers = set()
     for cluster in CLUSTERS:
@@ -248,15 +248,31 @@ def resolve_provider_uuids(conn):
             used_providers.add(match[0])
             logger.info(f"  Mapped provider '{match[1]}' -> cluster '{cluster['cluster_alias']}'")
             active.append(cluster)
-        else:
-            logger.warning(f"  No provider match for cluster '{cluster['cluster_alias']}', skipping")
-    CLUSTERS[:] = active
 
-    if not CLUSTERS:
-        sys.exit(
-            "ERROR: No providers matched any cluster. "
-            "Provider names must contain (or be contained by) a cluster alias."
-        )
+    if active:
+        CLUSTERS[:] = active
+        return
+
+    # Fallback: single provider → assign it to all clusters
+    if len(providers) == 1:
+        uuid_val, name = providers[0]
+        logger.info(f"  Single provider '{name}' — assigning to all {len(CLUSTERS)} cluster(s)")
+        for cluster in CLUSTERS:
+            cluster["source_uuid"] = uuid_val
+            logger.info(f"    '{name}' -> '{cluster['cluster_alias']}'")
+        return
+
+    # Fallback: multiple providers, no name matches — assign by position
+    logger.info("  No name matches found, assigning providers to clusters by position")
+    active = []
+    for i, cluster in enumerate(CLUSTERS):
+        if i < len(providers):
+            cluster["source_uuid"] = providers[i][0]
+            logger.info(f"    '{providers[i][1]}' -> '{cluster['cluster_alias']}'")
+            active.append(cluster)
+        else:
+            logger.warning(f"    No provider left for cluster '{cluster['cluster_alias']}', skipping")
+    CLUSTERS[:] = active
 
 
 def get_previous_costs(conn, schema: str, target_date: date) -> dict:
