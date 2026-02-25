@@ -207,6 +207,43 @@ def get_day_multiplier(target_date: date, prev_days_data: dict) -> float:
     return base_mult * (1 + variance)
 
 
+def resolve_provider_uuids(conn):
+    """Query actual provider UUIDs from the DB and assign them to CLUSTERS.
+
+    The cost summary tables have a FK to reporting_tenant_api_provider, so we
+    must use UUIDs that actually exist in that table rather than hardcoded ones.
+    Providers are matched to clusters by position (sorted by name).
+    """
+    sql = "SELECT uuid::text, name FROM public.api_provider ORDER BY name"
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        providers = cur.fetchall()
+
+    if not providers:
+        sys.exit(
+            "ERROR: No providers found in api_provider table. "
+            "Deploy cost-onprem and register sources first."
+        )
+
+    logger.info(f"Found {len(providers)} provider(s) in database:")
+    for uuid_val, name in providers:
+        logger.info(f"  {name}: {uuid_val}")
+
+    if len(providers) < len(CLUSTERS):
+        logger.warning(
+            f"Only {len(providers)} provider(s) but {len(CLUSTERS)} clusters defined. "
+            f"Extra clusters will be skipped."
+        )
+
+    # Assign real UUIDs to clusters; trim CLUSTERS if we have fewer providers
+    active = []
+    for i, cluster in enumerate(CLUSTERS):
+        if i < len(providers):
+            cluster["source_uuid"] = providers[i][0]
+            active.append(cluster)
+    CLUSTERS[:] = active
+
+
 def get_previous_costs(conn, schema: str, target_date: date) -> dict:
     """Query the last 2 days' total cost from the cost summary table."""
     sql = f"""
@@ -838,6 +875,8 @@ def main():
     conn = psycopg2.connect(host=db_host, port=db_port, dbname=db_name, user=db_user, password=db_pass)
 
     try:
+        resolve_provider_uuids(conn)
+
         # Default mode: auto-detect gaps and fill from last data date+1 to today,
         # capped to the 1st of the current month.
         if dates is None:
